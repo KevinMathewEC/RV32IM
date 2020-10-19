@@ -1,9 +1,38 @@
 
 
 module Program_counter_control(instruction,clk,branch_status_exe,HALTED,valid_exe,valid,TAKEN_BRANCH,rst,jump_addr_exe,br_taddr,br_inst,read_write,buffer_select,branch_predictor_select,STALL,prediction_valid_exe,LHT_index,PC,br_taddr_exe);
+	/*
+	Variable description
+	instruction - instruction fetched from program memory
+	clk - clock
+	branch_status_exe - Branch status(jump taken or not) ,from execution stage
+	HALTED - Halt for data hazard
+	valid_exe - High if execution stage is transmitting valid data to the fetch stage
+	valid -High if Branch Target Buffer has valid jump address
+	TAKEN_BRANCH - High if Branch is predicted to be taken
+	rst -Reset
+	jump_addr_exe - Jump target address,from execution stage
+	br_taddr - Branch target address,from Branch target buffer
+	br_inst - Branch instruction
+	read_write -Read,Write select
+	buffer_select -Buffer select
+	branch_predictor_select - Branch Predictor Select
+	STALL - stall due to control hazard
+	prediction_valid_exe - wire to BTB connected to branch_status_exe
+	LHT_index - Local History Table index
+	PC - Program Counter
+	br_taddr_exe - wire to BTB connected to jump_addr_exe
+	rptr - Read pointer for instruction_fifo
+	wptr - Write pointer for instruction_fifo
+	jump_cond - jump condition of current instruction
+		00 : current instruction is not a jump instruction
+		01 : conditional jump
+		10: unconditional jump
+	instruction_fifo - instruction fifo [24:1] - instruction [0] - prediction made by BP for the instruction
+	*/
 	parameter JAL=7'b1101111;
 	parameter JALR=7'b1100111;
-	parameter B_inst=7'b1100011;
+	parameter B_inst=7'b1100011;//conditional jump opcode
 	input [31:0]instruction;
 	input clk,branch_status_exe,HALTED,valid_exe,valid,TAKEN_BRANCH,rst;
         input [31:0]jump_addr_exe,br_taddr;
@@ -110,7 +139,18 @@ endmodule
 
 
 module Branch_target_buffer(rst,rd_wr,buffer_select,br_inst,br_taddr,br_taddr_exe,valid);
-
+	/*
+	Variable description
+	rd_wr -Read/Write
+	buffer_select - Buffer Select
+	rst - Reset
+	br_inst - 24 Msb bits of the instruction
+	br_taddr_exe - Branch target address,from execution stage
+	memory - Branch Target Buffer
+	br_taddr - Branch Target Address
+	valid - High is valid data from BTB
+	i - counter
+	*/
 	input rd_wr,buffer_select,rst;
 	input [23:0]br_inst;//7 bits of instruction is opcode
 	input [31:0]br_taddr_exe;
@@ -165,7 +205,17 @@ endmodule
 
 
 module Branch_predictor(rst,LHT_index,rd_write,TAKEN_BRANCH,prediction_valid_exe);
-
+	/*
+	Variable description
+	rst - Reset
+	prediction_valid_exe - Jump status,from execution stage
+	LHT_index - read pointer for Local History Index table
+	LHT -Local History Index Table
+	LPT - Local Prediction Table
+	LPT_index - Local Prediction Table read pointer
+	TAKEN_BRANCH - Branch prediction
+	Branch_pred - Branch prediction (2 bit)
+	*/
 	input rst,rd_write,prediction_valid_exe;
 	input [4:0]LHT_index;
  	reg [3:0]LHT[31:0];
