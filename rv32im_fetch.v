@@ -187,7 +187,7 @@ module Branch_target_buffer(rst,rd_wr,buffer_select,br_inst,br_taddr,br_taddr_ex
 		
 		 	br_taddr=memory[br_inst[9:0]][31:0];
 		        valid=memory[br_inst[9:0]][46];
-            end
+            		end
 			else//cache miss
 			begin
 	
@@ -268,10 +268,10 @@ module Branch_predictor(rst,LHT_index,rd_write,TAKEN_BRANCH,prediction_valid_exe
 			end
       			else if(!prediction_valid_exe)
 			begin
-			LPT_index=LHT[LHT_index];
-			LPT[LPT_index]=(LPT[LPT_index]-1)&&(LPT[LPT_index]!=2'b00);//update LPT
+				LPT_index=LHT[LHT_index];
+				LPT[LPT_index]=(LPT[LPT_index]-1)&&(LPT[LPT_index]!=2'b00);//update LPT
 			//$write("lp_in %d lpt[]%d time%d",LPT_index,LPT[LPT_index],$time);
-			LHT[LHT_index]={1'b0,LPT_index[3:1]};//update LHT
+				LHT[LHT_index]={1'b0,LPT_index[3:1]};//update LHT
 	//			$display("updated lht %d",LHT[LHT_index]);
 
 			end
@@ -297,7 +297,7 @@ begin
 end
 
 Branch_target_buffer BTB_1(.rst(RESET),.rd_wr(read_write),.buffer_select(buffer_select),.br_inst(br_inst),.br_taddr(br_taddr),.br_taddr_exe(br_taddr_exe),.valid(valid));
-Branch_target_buffer BTB_2(.rst(RESET),.rd_wr(read_write),.buffer_select(buffer_select),.br_inst(br_inst),.br_taddr(br_taddr),.br_taddr_exe(br_taddr_exe),.valid(valid));
+//Branch_target_buffer BTB_2(.rst(RESET),.rd_wr(read_write),.buffer_select(buffer_select),.br_inst(br_inst),.br_taddr(br_taddr),.br_taddr_exe(br_taddr_exe),.valid(valid));
 
 Branch_predictor BP(.rst(RESET),.LHT_index(LHT_index),.rd_write(rd_write),.TAKEN_BRANCH(TAKEN_BRANCH),.prediction_valid_exe(prediction_valid_exe));
 
