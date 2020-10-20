@@ -66,7 +66,7 @@ module Program_counter_control(instruction,clk,branch_status_exe,HALTED,valid_ex
 				 STALL=1'b1;//
             			br_inst=(instruction_fifo[rptr][24:1]);
 				read_write<=1'b0;//write
-				buffer_select<=br_inst[0];//choose one of the two BTB
+				buffer_select<=1'b1;//choose one of the two BTB
             			branch_predictor_select<=1'b1;
 				br_taddr_exe<=jump_addr_exe;//from exe stage
 				prediction_valid_exe<=branch_status_exe;//from exe stage
@@ -76,7 +76,7 @@ module Program_counter_control(instruction,clk,branch_status_exe,HALTED,valid_ex
 			begin
 				jump_cond<=2'b01;//conditional jump
 				read_write<=1'b1;//read
-				buffer_select<=instruction[7];
+				buffer_select<=1'b1;
             			branch_predictor_select<=1'b1;
 				br_inst<=instruction[31:8];
             			LHT_index<=instruction[12:8];
@@ -86,7 +86,7 @@ module Program_counter_control(instruction,clk,branch_status_exe,HALTED,valid_ex
 			begin
 				jump_cond<=2'b10;//unconditional jump
 				read_write<=1'b1;//read
-				buffer_select<=instruction[7];
+				buffer_select<=1'b1;
 				br_inst<=instruction[31:8];
             			branch_predictor_select<=1'b0;//Branch TAKEN_BRANCH not required for unconditional jump
 			
@@ -94,6 +94,8 @@ module Program_counter_control(instruction,clk,branch_status_exe,HALTED,valid_ex
 			else
 			begin
 				jump_cond<=2'b00;//no jump
+				buffer_select<=1'b0;
+				branch_predictor_select<=1'b0;
 			end
 
 
