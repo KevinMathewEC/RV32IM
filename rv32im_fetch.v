@@ -1,4 +1,12 @@
-
+/*
+ Fetch instruction
+ if Branch_instruction
+   if Conditional jump
+    Predict Branch_target_address and Branch_status(taken/not taken)
+   if unconditonal jump
+    Predict Branch_target_address
+ Update PC based on prediction
+*/
 
 module Program_counter_control(instruction,clk,branch_status_exe,HALTED,valid_exe,valid,TAKEN_BRANCH,rst,jump_addr_exe,br_taddr,br_inst,read_write,buffer_select,branch_predictor_select,STALL,prediction_valid_exe,LHT_index,PC,br_taddr_exe);
 	/*
