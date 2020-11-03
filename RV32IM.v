@@ -18,14 +18,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 	reg PC_jump_halt;
 	always@(*)
 	begin
-		if(rst)
-		begin
 
-		 	STALL=1'b0;
-					 
-		end
-		else
-		begin
 
       			if(valid_exe)//valid data from execution stage-branch target address and jump status
 			begin
@@ -72,7 +65,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 
 
 		
-		end
+		
 	end
 	always@(posedge clk or posedge rst)
 	begin
