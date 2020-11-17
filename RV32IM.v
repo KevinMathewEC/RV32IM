@@ -713,17 +713,8 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 		  end
               BLTU:
                 begin
-                  if(ID_EX_A<0)
-		  begin
-                    ID_EX_A = ~ID_EX_A+1;
-	    	  end
-                  if(ID_EX_B<0)
-		  begin
-                    ID_EX_B = ~ID_EX_B+1;
-		  end
-                  if(ID_EX_A <= ID_EX_B)
+                  if( id_ex_a<= id_ex_b)
       		  begin
-
                 	tPC<= PC_IN_EXECUTE+{{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
