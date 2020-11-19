@@ -506,7 +506,7 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 
   end
 
-  always @(posedge clk)
+    always @(posedge clk)
 	  if(STALL)
 	  begin
 
@@ -546,47 +546,50 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
                   EX_MEM_ALUOut =  id_ex_a < id_ex_b;
                 end
 
-              MUL:
-                begin
-                  EX_MEM_ALUOut<=ID_EX_A*ID_EX_B;
-                end
+                  MUL:
+                    begin
+                      {mul_h,mul_l}=ID_EX_A*ID_EX_B;
+                      EX_MEM_ALUOut = mul_l;
+                    end
 
-              MULH:
-                begin
-                  EX_MEM_ALUOut<=  ID_EX_A*ID_EX_B;
-                end
+                  MULH:
+                    begin
+                      {mul_h,mul_l}=ID_EX_A*ID_EX_B;
+                      EX_MEM_ALUOut= mul_h;
+                    end
 
-              MULHU:
-                begin
-                 EX_MEM_ALUOut<=  id_ex_a * id_ex_b;
-                end
+                  MULHU:
+                    begin
+                      {mul_h,mul_l}=  id_ex_a * id_ex_b;
+                      EX_MEM_ALUOut= mul_h;
+                    end
 
-              MULHSU:
-                begin
-                  EX_MEM_ALUOut<=  ID_EX_A*id_ex_b;
-                end
+                  MULHSU:
+                    begin
+                      {mul_h,mul_l}=  ID_EX_A * id_ex_b;
+                      EX_MEM_ALUOut= mul_h;
+                    end
 
-              DIV:
-                begin
-                 EX_MEM_ALUOut<=  ID_EX_A / ID_EX_B;
-                end
+                  DIV:
+                    begin
+                      EX_MEM_ALUOut<=  ID_EX_A / ID_EX_B;
+                    end
 
-              DIVU: 
-                begin
-                  EX_MEM_ALUOut<=  id_ex_a / id_ex_b;
-                end
+                  DIVU: 
+                    begin
+                      EX_MEM_ALUOut<=  id_ex_a / id_ex_b;
+                    end
 
-              REM:
-                begin
-                 EX_MEM_ALUOut<=  ID_EX_A % ID_EX_B;
-                end
+                  REM:
+                    begin
+                      EX_MEM_ALUOut<=  ID_EX_A % ID_EX_B;
+                    end
 
-              REMU: 
-                begin
-                 EX_MEM_ALUOut<= id_ex_a % id_ex_b;
-                end
-            endcase
-	          VALID<=1'b0;
+                  REMU: 
+                    begin
+                      EX_MEM_ALUOut<= id_ex_a % id_ex_b;
+                    end
+                endcase	          VALID<=1'b0;
       BRANCH_STATUS<=1'b0;
           end
 
@@ -597,14 +600,14 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 
             case (ID_EX_IR[14:12])
               ADDI: EX_MEM_ALUOut <=  ID_EX_A + {{21{ID_EX_IR[31]}},ID_EX_IR[30:20]};
-              SLTI: EX_MEM_ALUOut <=  ID_EX_A < {{21{ID_EX_IR[31]}},ID_EX_IR[30:20]};
+              SLTI: EX_MEM_ALUOut <=  ID_EX_A < $signed({{21{ID_EX_IR[31]}},ID_EX_IR[30:20]});
               SLTIU:
                 begin
-                  if(ID_EX_A<0)
-                    ID_EX_A <= ~ID_EX_A+1;
-                  if({{21{ID_EX_IR[31]}},ID_EX_IR[30:20]}<0)
-                    ID_EX_Imm <= ~{{21{ID_EX_IR[31]}},ID_EX_IR[30:20]}+1;
-                  EX_MEM_ALUOut <=  ID_EX_A < {{21{ID_EX_IR[31]}},ID_EX_IR[30:20]};
+          //        if(ID_EX_A<0)
+           //         ID_EX_A <= ~ID_EX_A+1;
+            //      if({{21{ID_EX_IR[31]}},ID_EX_IR[30:20]}<0)
+             //       ID_EX_Imm <= ~{{21{ID_EX_IR[31]}},ID_EX_IR[30:20]}+1;
+                  EX_MEM_ALUOut <=  id_ex_a < {{21{ID_EX_IR[31]}},ID_EX_IR[30:20]};
                 end
 
               XORI:  EX_MEM_ALUOut <=  ID_EX_A ^ {{21{ID_EX_IR[31]}},ID_EX_IR[30:20]};
@@ -713,12 +716,21 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 		  end
               BLTU:
                 begin
+                  if(ID_EX_A<0)
+		  begin
+                    ID_EX_A = ~ID_EX_A+1;
+	    	  end
+                  if(ID_EX_B<0)
+		  begin
+                    ID_EX_B = ~ID_EX_B+1;
+		  end
                   if( id_ex_a<= id_ex_b)
       		  begin
+
                 	tPC<= PC_IN_EXECUTE+{{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			$display("BLTU a %d b %d %d",ID_EX_A,ID_EX_B,$time);
+			$display("BLTU a %d b %d %d",id_ex_a,id_ex_b,$time);
 
 		  end
                 end
@@ -772,7 +784,8 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 	end
     end
   assign PC_OUT_EXECUTE=tPC;
-endmodule 
+  assign overflow = (EX_MEM_ALUOut[31] & ~ID_EX_A[31] & ~ID_EX_B[31])||(~EX_MEM_ALUOut[31] & ID_EX_A[31] & ID_EX_B[31] );
+endmodule  
 
 module rv32_mem(EX_MEM_type,EX_MEM_B,clk,MEM_WB_ALUOut,EX_MEM_ALUOut,MEM_WB_IR,EX_MEM_IR,STALL,HALT,EX_MEM_RD,MEM_WB_RD);
   parameter load=3;
