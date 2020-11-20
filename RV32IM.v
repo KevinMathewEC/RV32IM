@@ -874,5 +874,4 @@ module rv32im_top (RESET,clk,test);
 
   rv32_wb write_back(.MEM_WB_ALUOut(MEM_WB_ALUOut),.clk(clk),.MEM_WB_IR(MEM_WB_IR),.write_sig(write_sig),.address(address),.data(data),.HALT(HALT));
 endmodule
-//read and write can happen same time for BP
-//
+
