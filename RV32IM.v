@@ -361,7 +361,7 @@ endmodule
   input [4:0] rs1, rs2, rd_wb,rd_decode,EX_MEM_rd,MEM_WB_rd;
   input [31:0] wr_data,EX_MEM_ALUOut,MEM_WB_ALUOut;
   output reg [31:0] rd_data1, rd_data2;
-  reg [31:0] regfile[0:31];
+  reg signed[31:0] regfile[0:31];
 
 
   always @(*)
