@@ -1,9 +1,14 @@
 
 module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANCH,rst,jump_addr_exe,br_taddr,br_inst_read,br_inst_write,read_sig,write_sig,buffer_select,branch_predictor_select,STALL,prediction_valid_exe,LHT_index_read,LHT_index_write,PC,br_taddr_exe,IF_ID_IR,HALT);
+	/*
+	Update the Program Counter based on the instruction
+	  if jump_inst/Branch_inst and there is a valid data from the Branch target buffer then the branch/jump is taken based on the prediction of the Branch Predictor
+	When a valid data(Branch address and Branch Status(Branch taken/not taken)) is got from the execution stage ,update the BP and BTB using the necessary signals
+	If the current instruction is a Banch_inst/jump_inst then request the BTB and BP for the necessary data regarding the branch(Branch target address and Branch prediction).
+	*/
 	parameter JAL=7'b1101111;
 	parameter JALR=7'b1100111;
 	parameter B_inst=7'b1100011;
-//	input [31:0]instruction;
 	input clk,branch_status_exe,valid_exe,valid,TAKEN_BRANCH,rst;
         input [31:0]jump_addr_exe,br_taddr;
 	output reg [23:0]br_inst_read,br_inst_write;
@@ -12,13 +17,11 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 	output reg [31:0]PC,br_taddr_exe,IF_ID_IR;
 	reg [2:0]inst_rptr,inst_wptr,PC_rptr,PC_wptr;
   	reg [1:0]jump_cond;
-  	reg [24:0]instruction_fifo[7:0];
-	reg [31:0]PC_fifo[7:0];
+	reg [24:0]instruction_fifo[7:0];//stores the insruction for use to update BTB and BP when data is received from execution stage
+	reg [31:0]PC_fifo[7:0];//Stores the PC for use in case of branch misprediction
 	reg [31:0]Mem[1023:0];//instruction memory
-	reg PC_jump_halt;
 	always@(*)
 	begin
-
 
       			if(valid_exe)//valid data from execution stage-branch target address and jump status
 			begin
@@ -26,7 +29,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				 STALL=1'b1;//
             			br_inst_write=(instruction_fifo[inst_rptr][24:1]);
 				write_sig=1'b1;//write
-				buffer_select=1'b1;//br_inst[0];//choose one of the two BTB
+				buffer_select=1'b1;
             			branch_predictor_select=1'b1;
 				br_taddr_exe=jump_addr_exe;//from exe stage
 				prediction_valid_exe=branch_status_exe;//from exe stage
@@ -38,7 +41,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				jump_cond=2'b01;//conditional jump
 				read_sig=1'b1;//read
 				write_sig=valid_exe;
-				buffer_select=1'b1;//instruction[7];
+				buffer_select=1'b1;
             			branch_predictor_select=1'b1;
 				br_inst_read=IF_ID_IR[31:8];
             			LHT_index_read=IF_ID_IR[11:8];
@@ -52,24 +55,19 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				write_sig=valid_exe;
 				buffer_select=1'b1;//instruction[7];
 				br_inst_read=IF_ID_IR[31:8];
-            			branch_predictor_select=1'b0;//Branch TAKEN_BRANCH not required for unconditional jump
+            			branch_predictor_select=1'b0;//Branch prediction not required for unconditional jump
 			
 			
 			end
 			else
 			begin
 				jump_cond=2'b00;//no jump
-				buffer_select=valid_exe;
-				branch_predictor_select=valid_exe;
-				$display("no jump state jump_cond:%d buffer_select:%d time:%d",jump_cond,buffer_select,$time);
-			
+				buffer_select=valid_exe;//BTB not required but if there is a valid data from execution stage then this should not hinder it
+				branch_predictor_select=valid_exe;//BP not required but if there is a valid data from execution stage then this should not hinder it
 				read_sig=1'b0;
 				write_sig=valid_exe;
 			end
-
-			
-		
-		
+				
 	end
 	always@(posedge clk or posedge rst)
 	begin
@@ -81,7 +79,6 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
           	        PC_wptr<=3'd0;
 			STALL<=1'b0;
 			PC<=31'd0;
-			PC_jump_halt<=1'b0;
 			HALT<=1'b0;
 		end
 		else
@@ -97,16 +94,15 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 
 			
 
-			if(((jump_cond==2'b10)||(jump_cond==2'b01))&&(!PC_jump_halt))
+			if(((jump_cond==2'b10)||(jump_cond==2'b01)))
 			begin
 				if(jump_cond==2'b01)
-				instruction_fifo[inst_wptr]<={IF_ID_IR[31:8],TAKEN_BRANCH};
+					instruction_fifo[inst_wptr]<={IF_ID_IR[31:8],TAKEN_BRANCH};//update the instruction_fifo with the instruction(without opcode) and Branch predicted
 				else
 				instruction_fifo[inst_wptr]<={IF_ID_IR[31:8],valid};
-				PC_fifo[PC_wptr]<=PC;
+				PC_fifo[PC_wptr]<=PC;//update PC_fifo with PC value at the time of encountering jump inst
 				inst_wptr<=inst_wptr+3'd1;
 				PC_wptr<=PC_wptr+3'd1;
-				$display("cache miss wptr%d time %d",inst_wptr,$time);
 			end
 		if(STALL)//control hazard
 			begin
@@ -122,7 +118,6 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				end
 				  PC_rptr=PC_rptr+3'd1;
 				  STALL<=1'b0;
-				  $display("Stall branch_predicted:%d inst_rptr %d PC:%b STALL:%d time:%d",instruction_fifo[inst_rptr],inst_rptr,PC,STALL,$time);
 
 			end
 			else
@@ -156,32 +151,23 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 						PC<=PC+32'd1;
 					end
             			 end
-			//	 else
-			//	 begin
-			   /*     	if((((PC_jump_halt==1'b0)&&(jump_cond!=2'b00))))
-					begin
-					PC<=PC;
-					IF_ID_IR<=Mem[PC];
-					end
-					else*/	
-				//	PC<=PC+32'd1;
-			//	end
-				 $display("PC updation jump_cond:%d PC:%b valid:%d br_taddr:%b time:%d",jump_cond,PC,valid,br_taddr,$time);
 			  end
-			end
 		end
-
+	end
          
 endmodule
 
 
 module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst_write,br_taddr,br_taddr_exe,valid);
-
+	/*
+	Return Branch_target_address when required by the PC_control module(on encountering a jump/branch instruction)
+		match the tag bits,check if the data @location is valid and return the address
+	Update the Branch_target_address for a jump/branch inst when data is received from execution stage
+	*/
 	input rd_sig,wr_sig,buffer_select,rst;
 	input [23:0]br_inst_read,br_inst_write;//7 bits of instruction is opcode
 	input [31:0]br_taddr_exe;
   	reg [46:0]memory[1023:0];
-
 	output reg [31:0]br_taddr;
  	output reg valid;
   	reg [10:0]i;
@@ -190,10 +176,6 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 	begin
 	    if(rst)
 	    begin
-	//	for(i=0;i<1023;i=i+1)
-	//	begin
-	//		memory[i]=47'd0;//initialize the memory to all zeros
-	//	end
  		valid=1'b0;
 		br_taddr=31'd0;		
             end
@@ -202,24 +184,22 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 		if(wr_sig)//write
 		begin
          	 memory[br_inst_write[9:0]]={1'b1,br_inst_write[23:10],br_taddr_exe};//valid,tag,branch target address
-  		 $display("write BTB memory:%b time:%d",memory[br_inst_write[9:0]],$time);   		       
-		end
+      	        end
 
 		if(rd_sig)//read
 		begin
 		if(memory[br_inst_read[9:0]][45:32]==br_inst_read[23:10])//tag comparison
 			begin
-		
 		 	br_taddr=memory[br_inst_read[9:0]][31:0];
 		        valid=memory[br_inst_read[9:0]][46];
-            end
+            		end
 			else//cache miss
 			begin
 	
 			valid=1'b0;			
 			br_taddr=32'd0;
 			end
-			$display("read BTB memory:%d tag:%d br_addr:%d valid:%d time:%d",memory[br_inst_read[9:0]][45:32],br_inst_read[23:10],br_taddr,valid,$time);
+			
  		 end
 		end
 		else
@@ -228,15 +208,15 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 		end
 	     end
 
-
-
 endmodule
 
 
 
 
 module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKEN_BRANCH,prediction_valid_exe,BP_select);
-
+        /*
+	https://www.geeksforgeeks.org/correlating-branch-prediction/
+	*/
 	input rst,rd_sig,write_sig,prediction_valid_exe,BP_select;
 	input [3:0]LHT_index_read,LHT_index_write;
  	reg [3:0]LHT[15:0];
@@ -252,7 +232,6 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
         begin
           for(i=0;i<17;i=i+1)
             begin
-		    //$display("%d",i);
         	    LHT[i]=4'd0;
               	    LPT[i]=2'd0;
             end
@@ -265,8 +244,6 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 		begin	
 			LPT_index_read=LHT[LHT_index_read];
 			Branch_pred=LPT[LPT_index_read];//2 bit TAKEN_BRANCH
-		$display("lpt_index%d branch_pr:%d time:%d",LPT_index_read,LPT[LPT_index_read],$time);
-
 			case (Branch_pred)//make 2 bit to 1 bit TAKEN_BRANCH
 				2'b00:TAKEN_BRANCH=1'b0;
 				2'b01:TAKEN_BRANCH=1'b0;
@@ -283,23 +260,18 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 				LPT_index_write=LHT[LHT_index_write];
 				if(LPT[LPT_index_write]!=2'b11)
 				LPT[LPT_index_write]=(LPT[LPT_index_write]+1);//update LPT\TAKEN_BRANCH
-		$write("lp_index:%d lpt[]:%d time:%d",LPT_index_write,LPT[LPT_index_write],$time);
 				LHT[LHT_index_write]={1'b1,LPT_index_write[3:1]};//update LHT
-		$display("   updated lht:%d",LHT[LHT_index_write]);
 			end
       			else if(!prediction_valid_exe)
 			begin
-			LPT_index_write=LHT[LHT_index_write];
-			if(LPT[LPT_index_write]!=2'b00)
-			LPT[LPT_index_write]=(LPT[LPT_index_write]-1);//update LPT
-			$write("lp_index:%d lpt[]:%d time:%d",LPT_index_write,LPT[LPT_index_write],$time);
-			LHT[LHT_index_write]={1'b0,LPT_index_write[3:1]};//update LHT
-			$display("   updated lht:%d",LHT[LHT_index_write]);
-
+				LPT_index_write=LHT[LHT_index_write];
+				if(LPT[LPT_index_write]!=2'b00)
+					LPT[LPT_index_write]=(LPT[LPT_index_write]-1);//update LPT
+				LHT[LHT_index_write]={1'b0,LPT_index_write[3:1]};//update LHT
 			end
 		end
         end
-	end
+end
  
 endmodule
 
