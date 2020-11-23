@@ -655,14 +655,24 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 
             ID_EX_Imm <= {{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
             case (ID_EX_IR[14:12])
-              BEQ:if(ID_EX_A == ID_EX_B)
-      		  begin
+              BEQ:
+		      begin
+			if(ID_EX_A == ID_EX_B)
+      		  	begin
                 	tPC<= PC_IN_EXECUTE+{{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
 			$display("BEQ %d",$time);
-		  end
-              BNE:if(ID_EX_A != ID_EX_B)
+		  	end
+			else
+			begin
+				VALID<=1'b1;
+				BRANCH_STATUS<=1'b0;
+			end
+		end
+              BNE:
+		      begin
+			      if(ID_EX_A != ID_EX_B)
       		  begin
                 	tPC<= PC_IN_EXECUTE+{{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
 			VALID<=1'b1;
@@ -670,7 +680,16 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 			$display("BNE %d",$time);
 
 		  end
-              BLT:if(ID_EX_A <= ID_EX_B)
+ 			else
+			begin
+				VALID<=1'b1;
+				BRANCH_STATUS<=1'b0;
+			end
+
+	 	 end
+              BLT:
+		      begin
+			      if(ID_EX_A <= ID_EX_B)
       		  begin
                 	tPC<= PC_IN_EXECUTE+{{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
 			VALID<=1'b1;
@@ -678,7 +697,16 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 			$display("BLT%d",$time);
 
 		  end
-              BGE:if(ID_EX_A >= ID_EX_B)
+		  			else
+			begin
+				VALID<=1'b1;
+				BRANCH_STATUS<=1'b0;
+			end
+
+	  	end
+              BGE:
+		      begin
+			      if(ID_EX_A >= ID_EX_B)
       		  begin
                 	tPC<= PC_IN_EXECUTE+{{21{ID_EX_IR[31]}},ID_EX_IR[7],ID_EX_IR[30:25],ID_EX_IR[11:8]};
 			VALID<=1'b1;
@@ -686,7 +714,15 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 			$display("BGE%d",$time);
 
 		  end
+		else
+			begin
+				VALID<=1'b1;
+				BRANCH_STATUS<=1'b0;
+			end
+
+	  	end
               BLTU:
+	      
                 begin
                   if(ID_EX_A<0)
 		  begin
@@ -705,6 +741,12 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 			$display("BLTU a %d b %d %d",id_ex_a,id_ex_b,$time);
 
 		  end
+			else
+			begin
+				VALID<=1'b1;
+				BRANCH_STATUS<=1'b0;
+			end
+
                 end
 
               BGEU:
@@ -719,8 +761,15 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 
 
 		  end
+		else
+		begin
+				VALID<=1'b1;
+				BRANCH_STATUS<=1'b0;
+		end
+
 		 	$display("BGEU a %d b %d %d",id_ex_a,id_ex_b,$time);
                 end
+
             endcase
           end
 
@@ -729,7 +778,7 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 		  		    EX_MEM_RD<=ID_EX_RD;
 
             ID_EX_Imm <=  {{12{ID_EX_IR[31]}},ID_EX_IR[19:12],ID_EX_IR[20],ID_EX_IR[30:21],1'b0};
-            EX_MEM_ALUOut <= tPC+1;
+            EX_MEM_ALUOut <= PC_IN_EXECUTE+1;
             tPC<=PC_IN_EXECUTE+{{12{ID_EX_IR[31]}},ID_EX_IR[19:12],ID_EX_IR[20],ID_EX_IR[30:21],1'b0};
 	    VALID<=1'b1;
 	    BRANCH_STATUS<=1'b1;
@@ -756,6 +805,7 @@ module rv32ex(forward_r1,forward_r2,clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUT
 	end
     end
   assign PC_OUT_EXECUTE=tPC;
+
   assign overflow = (EX_MEM_ALUOut[31] & ~ID_EX_A[31] & ~ID_EX_B[31])||(~EX_MEM_ALUOut[31] & ID_EX_A[31] & ID_EX_B[31] );
 endmodule  
 
