@@ -296,6 +296,9 @@ endmodule
 
 
 module rv32de(IF_ID_IR,clk,PC_IN_DECODE,PC_OUT_DECODE,ID_EX_A,ID_EX_B,ID_EX_IR,ID_EX_type,read_sig,ID_EX_RD,STALL,HALT);
+	/*
+	Register addresses are decoded from the instruction
+	*/
   input clk,STALL,HALT; 
   input [31:0]IF_ID_IR,PC_IN_DECODE;
   output reg[4:0]ID_EX_A,ID_EX_B,ID_EX_RD;// using output reg here made it non synthesizable
@@ -322,20 +325,27 @@ module rv32de(IF_ID_IR,clk,PC_IN_DECODE,PC_OUT_DECODE,ID_EX_A,ID_EX_B,ID_EX_IR,I
       ID_EX_A<=IF_ID_IR[19:15];
       ID_EX_B<=IF_ID_IR[24:20];
       ID_EX_RD<=IF_ID_IR[11:7];
-      read_sig<=1'b1;
+      read_sig<=1'b1;//read data from register bank
 	   end
       end
     end
 endmodule
 
  module regbank(rd_data1, rd_data2, wr_data,rs1,rs2,rd_wb,rd_decode, write_sig,read_sig,clk,EX_MEM_ALUOut,EX_MEM_rd,MEM_WB_ALUOut,MEM_WB_rd);
+	 /*
+	 write data into the registers when data and register address is received from the write_back stage
+	 if decode_stage requires data
+	   if the source register is rs0 then return 0
+	   check if the destination register for the execution stage computation is any of the source register for the current istruction
+	   else check if the destination register for the memory stage computation is any of the source register for the current istruction
+	   if any of the above cases is true forward the data from the executin/memory_stage as the register values for this instruction
+	   else read data from register
+	 */
   input clk, write_sig,read_sig;
   input [4:0] rs1, rs2, rd_wb,rd_decode,EX_MEM_rd,MEM_WB_rd;
   input [31:0] wr_data,EX_MEM_ALUOut,MEM_WB_ALUOut;
   output reg [31:0] rd_data1, rd_data2;
   reg signed[31:0] regfile[0:31];
-
-
   always @(*)
     begin
       if (write_sig)
