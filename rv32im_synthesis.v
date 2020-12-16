@@ -372,7 +372,7 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 	begin
       	if(rst)
         begin
-          for(i=0;i<17;i=i+1)
+		for(i=0;i<16;i=i+1)
             begin
 		    //$display("%d",i);
         	    LHT[i[3:0]]=4'd0;
