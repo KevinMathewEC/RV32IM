@@ -14,11 +14,12 @@ endmodule
 
 module instruction_mem(
 input winc,wclk,rst,
-input [31:0]wdata,r_addr,
+input [31:0]wdata,
+input [31:0]r_addr,
 output [31:0]rdata
 );
 reg [31:0]Mem[1023:0];
-reg [31:0]w_addr;
+reg [9:0]w_addr;
 assign rdata =Mem[r_addr];
 always@(posedge wclk)
 begin
@@ -37,7 +38,8 @@ endmodule
 
 module asynchronous_inst_mem(
 input winc,wclk,rclk,rst,
-input [31:0]read_addr,wdata,
+input [31:0]read_addr,
+input [31:0]wdata,
 output [31:0]rdata
 
 );
@@ -45,7 +47,6 @@ wire [31:0]r_addr;
 instruction_mem inst_mem(.winc(winc),.wclk(wclk),.rst(rst),.wdata(wdata),.r_addr(r_addr),.rdata(rdata));
 Mem_read mem_rd(.rclk(rclk),.rd_addr(read_addr),.r_addr(r_addr));
 endmodule
-
 
 module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANCH,rst,jump_addr_exe,br_taddr,br_inst_read,br_inst_write,read_sig,write_sig,buffer_select,branch_predictor_select,STALL,prediction_valid_exe,LHT_index_read,LHT_index_write,PC,br_taddr_exe,IF_ID_IR,HALT,instruction);
 	parameter JAL=7'b1101111;
@@ -62,7 +63,6 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
   	reg [1:0]jump_cond;
   	reg [24:0]instruction_fifo[7:0];
 	reg [31:0]PC_fifo[7:0];
-//	reg [31:0]Mem[1023:0];//instruction memory
 	reg [31:0]PC_reg,PC_prev;
 	reg STALL_reg;
 	assign IF_ID_IR=instruction;
@@ -95,7 +95,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				    end
 		//		  PC_rptr=PC_rptr+3'd1;
 				//  STALL<=1'b0;
-				  $display("Stall branch_predicted:%d inst_rptr %d PC:%b STALL:%d time:%d",instruction_fifo[inst_rptr],inst_rptr,PC,STALL,$time);
+				 
 
 				end
 				else
@@ -145,12 +145,12 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				if(valid)
 					begin
 				//	       	IF_ID_IR<=Mem[br_taddr];
-						PC<=br_taddr;
+						PC=br_taddr;
 					end
 					else
 					begin
 		        		//	IF_ID_IR<=Mem[PC];
-						PC<=PC_reg;
+						PC=PC_reg;
 					end
 			
 			
@@ -162,11 +162,11 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				jump_cond=2'b00;//no jump
 				buffer_select=valid_exe;
 				branch_predictor_select=valid_exe;
-				$display("no jump state jump_cond:%d buffer_select:%d time:%d",jump_cond,buffer_select,$time);
+				
 			
 				read_sig=1'b0;
 				write_sig=valid_exe;
-				PC<=PC_reg;
+				PC=PC_reg;
 			end
 
 			end
@@ -183,7 +183,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
           	        inst_wptr<=3'd0;
 			PC_rptr<=3'd0;
           	        PC_wptr<=3'd0;
-
+			PC_prev<=3'd0;
 			PC_reg<=32'd0;
 			HALT<=1'b0;
 		end
@@ -247,7 +247,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				inst_wptr=inst_wptr+3'd1;
 			//	PC_wptr<=PC_wptr+3'd1;
 				PC_wptr=inst_wptr;
-				$display("cache miss wptr%d time %d",inst_wptr,$time);
+				
 			end
 				if(jump_cond==2'b00)
 				begin
@@ -282,7 +282,7 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 					end
             			 end
 
-				 $display("PC updation jump_cond:%d PC:%b valid:%d br_taddr:%b time:%d",jump_cond,PC,valid,br_taddr,$time);
+				
 			  end
   			if(valid_exe)
 			begin
@@ -302,7 +302,7 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 	input rd_sig,wr_sig,buffer_select,rst;
 	input [23:0]br_inst_read,br_inst_write;//7 bits of instruction is opcode
 	input [31:0]br_taddr_exe;
-  	reg [46:0]memory[1023:0];
+  	reg [46:0]memory[63:0];
 
 	output reg [31:0]br_taddr;
  	output reg valid;
@@ -323,17 +323,17 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 	     begin
 		if(wr_sig)//write
 		begin
-         	 memory[br_inst_write[9:0]]={1'b1,br_inst_write[23:10],br_taddr_exe};//valid,tag,branch target address
-  		 $display("write BTB memory:%b time:%d",memory[br_inst_write[9:0]],$time);   		       
+         	 memory[br_inst_write[5:0]]={1'b1,br_inst_write[23:10],br_taddr_exe};//valid,tag,branch target address
+  		 		       
 		end
 
 		if(rd_sig)//read
 		begin
-		if(memory[br_inst_read[9:0]][45:32]==br_inst_read[23:10])//tag comparison
+		if(memory[br_inst_read[5:0]][45:32]==br_inst_read[23:10])//tag comparison
 			begin
 		
-		 	br_taddr=memory[br_inst_read[9:0]][31:0];
-		        valid=memory[br_inst_read[9:0]][46];
+		 	br_taddr=memory[br_inst_read[5:0]][31:0];
+		        valid=memory[br_inst_read[5:0]][46];
             end
 			else//cache miss
 			begin
@@ -341,7 +341,7 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 			valid=1'b0;			
 			br_taddr=32'd0;
 			end
-			$display("read BTB memory:%d tag:%d br_addr:%d valid:%d time:%d",memory[br_inst_read[9:0]][45:32],br_inst_read[23:10],br_taddr,valid,$time);
+			
  		 end
 		end
 		else
@@ -372,7 +372,7 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 	begin
       	if(rst)
         begin
-		for(i=0;i<16;i=i+1)
+          for(i=0;i<16;i=i+1)
             begin
 		    //$display("%d",i);
         	    LHT[i[3:0]]=4'd0;
@@ -387,7 +387,7 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 		begin	
 			LPT_index_read=LHT[LHT_index_read];
 			Branch_pred=LPT[LPT_index_read];//2 bit TAKEN_BRANCH
-		$display("lpt_index%d branch_pr:%d time:%d",LPT_index_read,LPT[LPT_index_read],$time);
+		
 
 			case (Branch_pred)//make 2 bit to 1 bit TAKEN_BRANCH
 				2'b00:TAKEN_BRANCH=1'b0;
@@ -405,18 +405,18 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 				LPT_index_write=LHT[LHT_index_write];
 				if(LPT[LPT_index_write]!=2'b11)
 				LPT[LPT_index_write]=(LPT[LPT_index_write]+1);//update LPT\TAKEN_BRANCH
-		$write("lp_index:%d lpt[]:%d time:%d",LPT_index_write,LPT[LPT_index_write],$time);
+		
 				LHT[LHT_index_write]={1'b1,LPT_index_write[3:1]};//update LHT
-		$display("   updated lht:%d",LHT[LHT_index_write]);
+		
 			end
       			else if(!prediction_valid_exe)
 			begin
 			LPT_index_write=LHT[LHT_index_write];
 			if(LPT[LPT_index_write]!=2'b00)
 			LPT[LPT_index_write]=(LPT[LPT_index_write]-1);//update LPT
-			$write("lp_index:%d lpt[]:%d time:%d",LPT_index_write,LPT[LPT_index_write],$time);
+			
 			LHT[LHT_index_write]={1'b0,LPT_index_write[3:1]};//update LHT
-			$display("   updated lht:%d",LHT[LHT_index_write]);
+			
 
 			end
 		end
@@ -882,7 +882,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			$display("BEQ %d",$time);
+			
 		  	end
 			else
 			begin
@@ -897,7 +897,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			$display("BNE %d",$time);
+		
 
 		  end
  			else
@@ -914,7 +914,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			$display("BLT%d",$time);
+			
 
 		  end
 		  			else
@@ -931,7 +931,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			$display("BGE%d",$time);
+			
 
 		  end
 		else
@@ -951,7 +951,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			$display("BLTU a %d b %d %d",id_ex_a,id_ex_b,$time);
+			
 
 		  end
 			else
@@ -980,7 +980,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 				BRANCH_STATUS<=1'b0;
 		end
 
-		 	$display("BGEU a %d b %d %d",id_ex_a,id_ex_b,$time);
+		 	
                 end
 	  default:
 		  begin
@@ -1000,7 +1000,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
             tPC<=PC_IN_EXECUTE+ID_EX_Imm ;
 	    VALID<=1'b1;
 	    BRANCH_STATUS<=1'b1;
-        	$display("JAL %d",$time);
+        	
 
           end
 
@@ -1013,7 +1013,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
             tPC<=ID_EX_A+ID_EX_Imm ;
 	    VALID<=1'b1;
 	    BRANCH_STATUS<=1'b1;
-			$display("JALR %d",$time);
+		
           end
 	default:
 	begin
