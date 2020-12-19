@@ -1,4 +1,4 @@
-module Mem_read(
+/*module Mem_read(
 	input rclk,
 	input [31:0]rd_addr,
 	output reg[31:0]r_addr
@@ -46,7 +46,7 @@ output [31:0]rdata
 wire [31:0]r_addr;
 instruction_mem inst_mem(.winc(winc),.wclk(wclk),.rst(rst),.wdata(wdata),.r_addr(r_addr),.rdata(rdata));
 Mem_read mem_rd(.rclk(rclk),.rd_addr(read_addr),.r_addr(r_addr));
-endmodule
+endmodule*/
 
 module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANCH,rst,jump_addr_exe,br_taddr,br_inst_read,br_inst_write,read_sig,write_sig,buffer_select,branch_predictor_select,STALL,prediction_valid_exe,LHT_index_read,LHT_index_write,PC,br_taddr_exe,IF_ID_IR,HALT,instruction);
 	parameter JAL=7'b1101111;
@@ -58,31 +58,32 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 	output reg read_sig,write_sig,buffer_select,branch_predictor_select,STALL,prediction_valid_exe,HALT;
         output reg [3:0]LHT_index_read,LHT_index_write;
 	output reg [31:0]PC,br_taddr_exe;
-	output [31:0]IF_ID_IR;
+	output reg[31:0]IF_ID_IR;
 	reg [2:0]inst_rptr,inst_wptr,PC_rptr,PC_wptr;
   	reg [1:0]jump_cond;
   	reg [24:0]instruction_fifo[7:0];
 	reg [31:0]PC_fifo[7:0];
+//	reg [31:0]Mem[1023:0];//instruction memory
 	reg [31:0]PC_reg,PC_prev;
 	reg STALL_reg;
-	assign IF_ID_IR=instruction;
 	always@(*)
 	begin
 			if(rst)
 			begin
-				STALL=1'b0;
+				STALL_reg=1'b0;
 				PC=32'd0;
+				jump_cond=2'b00;
 			end
 			else
 			begin
-				if(STALL_reg)
-					STALL=1'b0;
+				if(STALL)
+					STALL_reg=1'b0;
       			if(valid_exe)//valid data from execution stage-branch target address and jump status
 			begin
 				if(branch_status_exe!=instruction_fifo[inst_rptr][0])//branch mispredicted
 				// STALL=1'b1;//
 				begin
-				  STALL=1'b1;
+				  STALL_reg=1'b1;
         			  if(!(instruction_fifo[inst_rptr][0]))//branch mispredicted - not taken
 				  begin
 				//	IF_ID_IR<=Mem[br_taddr_exe];
@@ -91,15 +92,15 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				  else
 				  begin
 //					IF_ID_IR<=Mem[PC_fifo[PC_rptr]];
-              				PC=PC_fifo[PC_rptr];
+              				PC=PC_fifo[inst_rptr];
 				    end
 		//		  PC_rptr=PC_rptr+3'd1;
 				//  STALL<=1'b0;
-				 
+				  $display("Stall branch_predicted:%d inst_rptr %d PC:%b STALL:%d time:%d",instruction_fifo[inst_rptr],inst_rptr,PC,STALL,$time);
 
 				end
 				else
-					STALL=1'b0;
+					STALL_reg=1'b0;
             			br_inst_write=(instruction_fifo[inst_rptr][24:1]);
 				write_sig=1'b1;//write
 				buffer_select=1'b1;//br_inst[0];//choose one of the two BTB
@@ -110,16 +111,16 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				
 			end
       		//	if(IF_ID_IR[6:0]==B_inst)//conditional jump
-			if((instruction[6:0]==B_inst)&&(!STALL))
+			if((instruction[6:0]==B_inst)&&(!STALL_reg))
 			begin
-				jump_cond=2'b01;//conditional jump
+			//	jump_cond=2'b01;//conditional jump
 				read_sig=1'b1;//read
 				write_sig=valid_exe;
 				buffer_select=1'b1;//instruction[7];
             			branch_predictor_select=1'b1;
-				br_inst_read=IF_ID_IR[31:8];
-            			LHT_index_read=IF_ID_IR[11:8];
-				 if(valid&&TAKEN_BRANCH)
+				br_inst_read=instruction[31:8];
+            			LHT_index_read=instruction[11:8];
+			/*	 if(valid&&TAKEN_BRANCH)
 				 begin
 			      // 	IF_ID_IR<=Mem[br_taddr];
 					PC=br_taddr;
@@ -130,19 +131,67 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 	//					IF_ID_IR<=Mem[PC];
 					PC=PC_reg;
 				end
-				
+				*/
 				
                         			
 			end
-			else if(((instruction[6:0]==JAL)||(instruction[6:0]==JALR))&&(!STALL))
+			else if(((instruction[6:0]==JAL)||(instruction[6:0]==JALR))&&(!STALL_reg))
 			begin
-				jump_cond=2'b10;//unconditional jump
+		//		jump_cond=2'b10;//unconditional jump
 				read_sig=1'b1;//read
 				write_sig=valid_exe;
 				buffer_select=1'b1;//instruction[7];
-				br_inst_read=IF_ID_IR[31:8];
+				br_inst_read=instruction[31:8];
             			branch_predictor_select=1'b0;//Branch TAKEN_BRANCH not required for unconditional jump
-				if(valid)
+			/*	if(valid)
+					begin
+				//	       	IF_ID_IR<=Mem[br_taddr];
+						PC=br_taddr;
+					end
+					else
+					begin
+		        		//	IF_ID_IR<=Mem[PC];
+						PC=PC_reg;
+					end*/
+			
+			
+			end
+			else
+			begin
+				if(!STALL_reg)
+				begin
+			//	jump_cond=2'b00;//no jump
+				
+				buffer_select=valid_exe;
+				branch_predictor_select=valid_exe;
+				$display("no jump state jump_cond:%d buffer_select:%d time:%d",jump_cond,buffer_select,$time);
+			
+				read_sig=1'b0;
+				write_sig=valid_exe;
+				PC=PC_reg;
+				end
+
+			end
+
+			if((IF_ID_IR[6:0]==B_inst)&&(!STALL))
+			begin
+				jump_cond=2'b01;
+				if(valid&&TAKEN_BRANCH)
+				 begin
+			      // 	IF_ID_IR<=Mem[br_taddr];
+					PC=br_taddr;
+								
+				 end
+				 else
+				 begin
+	//					IF_ID_IR<=Mem[PC];
+					PC=PC_reg;
+				end
+			end
+			else if(((IF_ID_IR[6:0]==JAL)||(IF_ID_IR[6:0]==JALR))&&(!STALL))
+			begin
+					jump_cond=2'b10;
+					if(valid)
 					begin
 				//	       	IF_ID_IR<=Mem[br_taddr];
 						PC=br_taddr;
@@ -152,22 +201,12 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 		        		//	IF_ID_IR<=Mem[PC];
 						PC=PC_reg;
 					end
-			
-			
+
 			end
-			else
+			else if(!STALL&&!STALL_reg)
 			begin
-				if(!STALL)
-				begin
-				jump_cond=2'b00;//no jump
-				buffer_select=valid_exe;
-				branch_predictor_select=valid_exe;
-				
-			
-				read_sig=1'b0;
-				write_sig=valid_exe;
+				jump_cond=2'b00;
 				PC=PC_reg;
-			end
 
 			end
 			end
@@ -190,6 +229,8 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 		else
 		begin
 			PC_prev<=PC;
+			IF_ID_IR<=instruction;
+
 		//	IF_ID_IR<=instruction;
 
 		/*	if((!STALL)&&(jump_cond==2'b00))
@@ -229,25 +270,25 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 				  $display("Stall branch_predicted:%d inst_rptr %d PC:%b STALL:%d time:%d",instruction_fifo[inst_rptr],inst_rptr,PC,STALL,$time);
 
 			end*/
-		        if(STALL)
+		        if(STALL_reg)
 			begin
-				STALL_reg<=1'b1;
+				STALL<=1'b1;
 				PC_reg<=PC+32'd1;
 			end
 			else
 			begin
-				STALL_reg<=1'b0;
+				STALL<=1'b0;
 			if(((jump_cond==2'b10)||(jump_cond==2'b01)))
 			begin
 				if(jump_cond==2'b01)
 				instruction_fifo[inst_wptr]<={IF_ID_IR[31:8],TAKEN_BRANCH};
 				else
 				instruction_fifo[inst_wptr]<={IF_ID_IR[31:8],valid};
-				PC_fifo[PC_wptr]<=PC_prev+32'd1;
+				PC_fifo[inst_wptr]<=PC_prev+32'd1;
 				inst_wptr=inst_wptr+3'd1;
 			//	PC_wptr<=PC_wptr+3'd1;
-				PC_wptr=inst_wptr;
-				
+			//	PC_wptr=inst_wptr;
+				$display("cache miss wptr%d time %d",inst_wptr,$time);
 			end
 				if(jump_cond==2'b00)
 				begin
@@ -282,12 +323,12 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 					end
             			 end
 
-				
+				 $display("PC updation jump_cond:%d PC:%b valid:%d br_taddr:%b time:%d",jump_cond,PC,valid,br_taddr,$time);
 			  end
   			if(valid_exe)
 			begin
-				inst_rptr=inst_rptr+3'd1;
-				PC_rptr=inst_rptr;
+				inst_rptr<=inst_rptr+3'd1;
+	//			PC_rptr<=inst_rptr;
 			end
 			end
 
@@ -297,9 +338,9 @@ module Program_counter_control(clk,branch_status_exe,valid_exe,valid,TAKEN_BRANC
 endmodule
 
 
-module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst_write,br_taddr,br_taddr_exe,valid);
+module Branch_target_buffer(clk,rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst_write,br_taddr,br_taddr_exe,valid);
 
-	input rd_sig,wr_sig,buffer_select,rst;
+	input rd_sig,wr_sig,buffer_select,rst,clk;
 	input [23:0]br_inst_read,br_inst_write;//7 bits of instruction is opcode
 	input [31:0]br_taddr_exe;
   	reg [46:0]memory[63:0];
@@ -308,23 +349,19 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
  	output reg valid;
 
 
-	always@(*)
+	always@(posedge clk or posedge rst)
 	begin
 	    if(rst)
 	    begin
-	//	for(i=0;i<1023;i=i+1)
-	//	begin
-	//		memory[i]=47'd0;//initialize the memory to all zeros
-	//	end
- 		valid=1'b0;
-		br_taddr=31'd0;		
+ 		valid<=1'b0;
+		br_taddr<=31'd0;		
             end
 	    else if(buffer_select)
 	     begin
 		if(wr_sig)//write
 		begin
-         	 memory[br_inst_write[5:0]]={1'b1,br_inst_write[23:10],br_taddr_exe};//valid,tag,branch target address
-  		 		       
+         	 memory[br_inst_write[5:0]]<={1'b1,br_inst_write[23:10],br_taddr_exe};//valid,tag,branch target address
+  		 $display("write BTB memory:%b time:%d",memory[br_inst_write[5:0]],$time);   		       
 		end
 
 		if(rd_sig)//read
@@ -332,21 +369,21 @@ module Branch_target_buffer(rst,rd_sig,wr_sig,buffer_select,br_inst_read,br_inst
 		if(memory[br_inst_read[5:0]][45:32]==br_inst_read[23:10])//tag comparison
 			begin
 		
-		 	br_taddr=memory[br_inst_read[5:0]][31:0];
-		        valid=memory[br_inst_read[5:0]][46];
+		 	br_taddr<=memory[br_inst_read[5:0]][31:0];
+		        valid<=memory[br_inst_read[5:0]][46];
             end
 			else//cache miss
 			begin
 	
-			valid=1'b0;			
-			br_taddr=32'd0;
+			valid<=1'b0;			
+			br_taddr<=32'd0;
 			end
-			
+			$display("read BTB memory:%d tag:%d br_addr:%d valid:%d time:%d",memory[br_inst_read[5:0]][45:32],br_inst_read[23:10],br_taddr,valid,$time);
  		 end
 		end
 		else
 		begin
-			valid=1'b0;
+			valid<=1'b0;
 		end
 	     end
 
@@ -357,9 +394,9 @@ endmodule
 
 
 
-module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKEN_BRANCH,prediction_valid_exe,BP_select);
+module Branch_predictor(clk,rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKEN_BRANCH,prediction_valid_exe,BP_select);
 
-	input rst,rd_sig,write_sig,prediction_valid_exe,BP_select;
+	input rst,rd_sig,write_sig,prediction_valid_exe,BP_select,clk;
 	input [3:0]LHT_index_read,LHT_index_write;
  	reg [3:0]LHT[15:0];
  	reg [1:0]LPT[15:0];
@@ -368,15 +405,15 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 	reg [1:0]Branch_pred;
   	reg [4:0]i;
 
-  always@(*)
+  always@(posedge clk or posedge rst)
 	begin
       	if(rst)
         begin
           for(i=0;i<16;i=i+1)
             begin
 		    //$display("%d",i);
-        	    LHT[i[3:0]]=4'd0;
-              	    LPT[i[3:0]]=2'd0;
+        	    LHT[i[3:0]]<=4'd0;
+              	    LPT[i[3:0]]<=2'd0;
             end
           
         end
@@ -385,15 +422,15 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 
 		if(rd_sig)//read
 		begin	
-			LPT_index_read=LHT[LHT_index_read];
-			Branch_pred=LPT[LPT_index_read];//2 bit TAKEN_BRANCH
-		
+		//	LPT_index_read=LHT[LHT_index_read];
+		//	Branch_pred<=LPT[LHT[LHT_index_read]];//2 bit TAKEN_BRANCH
+		$display("lpt_index%d branch_pr:%d time:%d",LPT_index_read,LPT[LPT_index_read],$time);
 
-			case (Branch_pred)//make 2 bit to 1 bit TAKEN_BRANCH
-				2'b00:TAKEN_BRANCH=1'b0;
-				2'b01:TAKEN_BRANCH=1'b0;
-				2'b10:TAKEN_BRANCH=1'b1;
-				2'b11:TAKEN_BRANCH=1'b1;
+			case (LPT[LHT[LHT_index_read]])//make 2 bit to 1 bit TAKEN_BRANCH
+				2'b00:TAKEN_BRANCH<=1'b0;
+				2'b01:TAKEN_BRANCH<=1'b0;
+				2'b10:TAKEN_BRANCH<=1'b1;
+				2'b11:TAKEN_BRANCH<=1'b1;
 //				default:TAKEN_BRANCH=1'b0;
 			endcase
 		
@@ -402,21 +439,21 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 		begin
       			if(prediction_valid_exe)//if branch taken
 			begin
-				LPT_index_write=LHT[LHT_index_write];
-				if(LPT[LPT_index_write]!=2'b11)
-				LPT[LPT_index_write]=(LPT[LPT_index_write]+1);//update LPT\TAKEN_BRANCH
-		
-				LHT[LHT_index_write]={1'b1,LPT_index_write[3:1]};//update LHT
-		
+			//	LPT_index_write=LHT[LHT_index_write];
+				if(LPT[LHT[LHT_index_write]]!=2'b11)
+				LPT[LHT[LHT_index_write]]<=(LPT[LHT[LHT_index_write]]+1);//update LPT\TAKEN_BRANCH
+		$write("lp_index:%d lpt[]:%d time:%d",LPT_index_write,LPT[LPT_index_write],$time);
+				LHT[LHT[LHT_index_write]]<={1'b1,LHT[LHT_index_write][3:1]};//update LHT
+		$display("   updated lht:%d",LHT[LHT_index_write]);
 			end
       			else if(!prediction_valid_exe)
 			begin
 			LPT_index_write=LHT[LHT_index_write];
-			if(LPT[LPT_index_write]!=2'b00)
-			LPT[LPT_index_write]=(LPT[LPT_index_write]-1);//update LPT
-			
-			LHT[LHT_index_write]={1'b0,LPT_index_write[3:1]};//update LHT
-			
+			if(LPT[LHT[LHT_index_write]]!=2'b00)
+			LPT[LHT[LHT_index_write]]<=(LPT[LHT[LHT_index_write]]-1);//update LPT
+			$write("lp_index:%d lpt[]:%d time:%d",LPT_index_write,LPT[LPT_index_write],$time);
+			LHT[LHT[LHT_index_write]]<={1'b0,LHT[LHT_index_write][3:1]};//update LHT
+			$display("   updated lht:%d",LHT[LHT_index_write]);
 
 			end
 		end
@@ -424,9 +461,9 @@ module Branch_predictor(rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,TAKE
 	end
  
 endmodule
-module Fetch_top(RESET,clk,branch_status_exe,valid_exe,jump_addr_exe,IF_ID_IR,PC,TAKEN_BRANCH,STALL,HALT,winc,wclk,PROG_INST);
+module Fetch_top(RESET,clk,branch_status_exe,valid_exe,jump_addr_exe,IF_ID_IR,PC,TAKEN_BRANCH,STALL,HALT,winc,wclk,instruction);
 input RESET,clk,branch_status_exe,valid_exe,winc,wclk;
-input [31:0]jump_addr_exe,PROG_INST;
+input [31:0]jump_addr_exe,instruction;
 output wire[31:0]IF_ID_IR;
 output wire [31:0]PC;
 output TAKEN_BRANCH,STALL,HALT;
@@ -436,18 +473,18 @@ wire [31:0]br_taddr,br_taddr_exe,instruction;
 wire [3:0]LHT_index_read,LHT_index_write;
 
 
-Branch_target_buffer BTB_1(.rst(RESET),.rd_sig(read_sig),.wr_sig(write_sig),.buffer_select(buffer_select),.br_inst_read(br_inst_read),.br_inst_write(br_inst_write),.br_taddr(br_taddr),.br_taddr_exe(br_taddr_exe),.valid(valid));
+Branch_target_buffer BTB_1(.clk(clk),.rst(RESET),.rd_sig(read_sig),.wr_sig(write_sig),.buffer_select(buffer_select),.br_inst_read(br_inst_read),.br_inst_write(br_inst_write),.br_taddr(br_taddr),.br_taddr_exe(br_taddr_exe),.valid(valid));
 
-Branch_predictor BP(.rst(RESET),.LHT_index_read(LHT_index_read),.LHT_index_write(LHT_index_write),.rd_sig(read_sig),.write_sig(write_sig),.TAKEN_BRANCH(TAKEN_BRANCH),.prediction_valid_exe(prediction_valid_exe),.BP_select(branch_predictor_select));
+Branch_predictor BP(.clk(clk),.rst(RESET),.LHT_index_read(LHT_index_read),.LHT_index_write(LHT_index_write),.rd_sig(read_sig),.write_sig(write_sig),.TAKEN_BRANCH(TAKEN_BRANCH),.prediction_valid_exe(prediction_valid_exe),.BP_select(branch_predictor_select));
 
 Program_counter_control PC_control(.clk(clk),.branch_status_exe(branch_status_exe),.valid_exe(valid_exe),.valid(valid),.TAKEN_BRANCH(TAKEN_BRANCH),.rst(RESET),.jump_addr_exe(jump_addr_exe),.br_taddr(br_taddr),.br_inst_read(br_inst_read),.br_inst_write(br_inst_write),.read_sig(read_sig),.write_sig(write_sig),.buffer_select(buffer_select),.branch_predictor_select(branch_predictor_select),.STALL(STALL),.prediction_valid_exe(prediction_valid_exe),.LHT_index_read(LHT_index_read),.LHT_index_write(LHT_index_write),.PC(PC),.br_taddr_exe(br_taddr_exe),.IF_ID_IR(IF_ID_IR),.HALT(HALT),.instruction(instruction));
 
-asynchronous_inst_mem prog_mem(.winc(winc),.wclk(wclk),.rclk(clk),.rst(RESET),.read_addr(PC),.wdata(PROG_INST),.rdata(instruction));
+//asynchronous_inst_mem prog_mem(.winc(winc),.wclk(wclk),.rclk(clk),.rst(RESET),.read_addr(PC),.wdata(PROG_INST),.rdata(instruction));
 endmodule
 
 
-module rv32de(IF_ID_IR,clk,PC_IN_DECODE,PC_OUT_DECODE,ID_EX_A,ID_EX_B,ID_EX_IR,ID_EX_type,read_sig,ID_EX_RD,STALL,HALT,ID_EX_Imm);
-  input clk,STALL,HALT; 
+module rv32de(IF_ID_IR,PC_IN_DECODE,PC_OUT_DECODE,ID_EX_A,ID_EX_B,ID_EX_IR,ID_EX_type,read_sig,ID_EX_RD,STALL,HALT,ID_EX_Imm);
+  input STALL,HALT; 
   input [31:0]IF_ID_IR,PC_IN_DECODE;
   output reg[4:0]ID_EX_A,ID_EX_B,ID_EX_RD;
   output reg [31:0]ID_EX_IR,PC_OUT_DECODE,ID_EX_Imm;
@@ -463,7 +500,7 @@ module rv32de(IF_ID_IR,clk,PC_IN_DECODE,PC_OUT_DECODE,ID_EX_A,ID_EX_B,ID_EX_IR,I
   parameter JAL=111;//1101111
   parameter JALR=103;//1100111
   
-  always @(posedge clk)
+  always @(*)
     begin
 	if(STALL)
 	begin
@@ -528,53 +565,95 @@ module rv32de(IF_ID_IR,clk,PC_IN_DECODE,PC_OUT_DECODE,ID_EX_A,ID_EX_B,ID_EX_IR,I
    end
 endmodule
 
- module regbank(rd_data1, rd_data2, wr_data,rs1,rs2,rd_wb, write_sig,read_sig,EX_MEM_ALUOut,EX_MEM_rd,MEM_WB_ALUOut,MEM_WB_rd);
-  input  write_sig,read_sig;
+ module regbank(clk,rd_data1, rd_data2, wr_data,rs1,rs2,rd_wb, write_sig,read_sig,EX_MEM_ALUOut,EX_MEM_rd,MEM_WB_ALUOut,MEM_WB_rd);
+  input  clk,write_sig,read_sig;
   input [4:0] rs1, rs2, rd_wb,EX_MEM_rd,MEM_WB_rd;
   input [31:0] wr_data,EX_MEM_ALUOut,MEM_WB_ALUOut;
   output reg [31:0] rd_data1, rd_data2;
   reg signed[31:0] regfile[0:31];
+  reg [31:0]rd_data1_reg,rd_data2_reg;
+  reg [4:0]rs1_reg,rs2_reg;
 
-
-  always @(*)
+  always @(posedge clk)
     begin
+      rs1_reg<=rs1;
+      rs2_reg<=rs2;
       if (write_sig)
       begin
-	      regfile[rd_wb] = wr_data;
+	      regfile[rd_wb] <= wr_data;
       end
       if(read_sig)
         begin
 
 
-         if(rs1==0) rd_data1 =0;
+         if(rs1==0) rd_data1_reg<=0;
           else 
 	  begin
-		  if(EX_MEM_rd==rs1)
+	/*	  if(EX_MEM_rd==rs1)
 		  begin
 			  rd_data1=EX_MEM_ALUOut;
 
 		  end
 		  else if(MEM_WB_rd==rs1)
-			  rd_data1=MEM_WB_ALUOut;
+			  rd_data1=MEM_WB_ALUOut;*/
+		   if(rd_wb==rs1)
+			  rd_data1_reg<=wr_data;
 		  else
-			  rd_data1=regfile[rs1];
+			  rd_data1_reg<=regfile[rs1];
 
 	  end
-          if(rs2==0) rd_data2 =0;
+          if(rs2==0) rd_data2_reg <=0;
           else
 	  begin
-		  if(EX_MEM_rd==rs2)
+		 /* if(EX_MEM_rd==rs2)
 		  begin
 			  rd_data2=EX_MEM_ALUOut;
 		  end
 		  else if(MEM_WB_rd==rs2)
-			  rd_data2=MEM_WB_ALUOut;
+			  rd_data2=MEM_WB_ALUOut;*/
+		  if(rd_wb==rs2)
+			  rd_data2_reg<=wr_data;
 		  else
-			  rd_data2=regfile[rs2];
+			  rd_data2_reg<=regfile[rs2];
 
    end	
 end
- end   
+
+ end 
+ always@(*)
+ begin
+         if(rs1_reg==0) rd_data1 =0;
+          else 
+	  begin
+		  if(EX_MEM_rd==rs1_reg)
+		  begin
+			  rd_data1=EX_MEM_ALUOut;
+
+		  end
+		  else if(MEM_WB_rd==rs1_reg)
+			  rd_data1=MEM_WB_ALUOut;
+		  else if(rd_wb==rs1_reg)
+			  rd_data1=wr_data;
+		  else
+			  rd_data1=rd_data1_reg;
+
+	  end
+          if(rs2_reg==0) rd_data2 =0;
+          else
+	  begin
+		  if(EX_MEM_rd==rs2_reg)
+		  begin
+			  rd_data2=EX_MEM_ALUOut;
+		  end
+		  else if(MEM_WB_rd==rs2_reg)
+			  rd_data2=MEM_WB_ALUOut;
+		  else if(rd_wb==rs2_reg)
+			  rd_data2=wr_data;
+		  else
+			  rd_data2=rd_data2_reg;
+
+ end 
+ end
 endmodule
 
 module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID,BRANCH_STATUS,EX_MEM_ALUOut,EX_MEM_B,EX_MEM_IR,STALL,EX_MEM_type,HALT,ID_EX_RD,EX_MEM_RD,ID_EX_Imm);
@@ -594,7 +673,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 //  reg [31:0]ID_EX_Imm;
   reg [31:0]tPC;
   reg signed[31:0]ID_EX_A,ID_EX_B;
-  reg [31:0]id_ex_a,id_ex_b;
+//  reg [31:0]id_ex_a,id_ex_b;
   wire overflow;
   
   //opcodes and types of instructions
@@ -665,15 +744,11 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 	  begin
   		  ID_EX_A=32'd0;
 		  ID_EX_B=32'd0;
-	 	  id_ex_a=32'd0;
-		  id_ex_b=32'd0;
 	  end
 	  else
 	  begin
       ID_EX_A=rs1;
       ID_EX_B=rs2;
-      id_ex_a=rs1;
-      id_ex_b=rs2;
 
 	  end
   end
@@ -687,13 +762,14 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 		  EX_MEM_type<=7'd0;
 		  VALID<=1'b0;
 
+
+
 	  end
 	  else
     begin
  
      if(!HALT)
      begin
-
       EX_MEM_IR<=ID_EX_IR;
       EX_MEM_type<=ID_EX_type;
       case (ID_EX_type) 
@@ -715,31 +791,31 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 
               SLTU: 
                 begin
-                  EX_MEM_ALUOut =  id_ex_a < id_ex_b;
+                  EX_MEM_ALUOut<=  $unsigned(ID_EX_A) < $unsigned(ID_EX_B);
                 end
 
                   MUL:
                     begin
-                      {mul_h,mul_l}=ID_EX_A*ID_EX_B;
-                     EX_MEM_ALUOut = mul_l;
+                      {mul_h,EX_MEM_ALUOut}<=ID_EX_A*ID_EX_B;
+                    // EX_MEM_ALUOut = mul_l;
                     end
 
                   MULH:
                     begin
-                      {mul_h,mul_l}=ID_EX_A*ID_EX_B;
-                      EX_MEM_ALUOut= mul_h;
+                      {EX_MEM_ALUOut,mul_l}<=ID_EX_A*ID_EX_B;
+                    //  EX_MEM_ALUOut= mul_h;
                     end
 
                   MULHU:
                     begin
-                      {mul_h,mul_l}=id_ex_a * id_ex_b;
-                      EX_MEM_ALUOut= mul_h;
+                      {EX_MEM_ALUOut,mul_l}<=$unsigned(ID_EX_A) * $unsigned(ID_EX_B);
+                     // EX_MEM_ALUOut= mul_h;
                     end
 
                   MULHSU:
                     begin
-                      {mul_h,mul_l}=ID_EX_A * id_ex_b;
-                      EX_MEM_ALUOut= mul_h;
+                      {EX_MEM_ALUOut,mul_l}<=ID_EX_A * $unsigned(ID_EX_B);
+                    //  EX_MEM_ALUOut= mul_h;
                     end
 
                   DIV:
@@ -749,7 +825,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 
                   DIVU: 
                     begin
-                      EX_MEM_ALUOut<=  id_ex_a / id_ex_b;
+                      EX_MEM_ALUOut<=  $unsigned(ID_EX_A) / $unsigned(ID_EX_B);
                     end
 
                   REM:
@@ -759,7 +835,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 
                   REMU: 
                     begin
-                      EX_MEM_ALUOut<= id_ex_a % id_ex_b;
+                      EX_MEM_ALUOut<= $unsigned(ID_EX_A)% $unsigned(ID_EX_B);
                     end
 		  default:
 		  begin
@@ -784,7 +860,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
            //         ID_EX_A <= ~ID_EX_A+1;
             //      if({{21{ID_EX_IR[31]}},ID_EX_IR[30:20]}<0)
              //       ID_EX_Imm <= ~{{21{ID_EX_IR[31]}},ID_EX_IR[30:20]}+1;
-                  EX_MEM_ALUOut <=  id_ex_a < ID_EX_Imm ;
+                  EX_MEM_ALUOut <=  $unsigned(ID_EX_A)< ID_EX_Imm ;
                 end
 
               XORI:  EX_MEM_ALUOut <=  ID_EX_A ^ ID_EX_Imm ;
@@ -882,7 +958,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			
+			$display("BEQ %d",$time);
 		  	end
 			else
 			begin
@@ -897,7 +973,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-		
+			$display("BNE %d",$time);
 
 		  end
  			else
@@ -914,7 +990,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			
+			$display("BLT%d",$time);
 
 		  end
 		  			else
@@ -931,7 +1007,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			
+			$display("BGE%d",$time);
 
 		  end
 		else
@@ -945,13 +1021,13 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 	      
                 begin
 
-                  if( id_ex_a<= id_ex_b)
+                  if( $unsigned(ID_EX_A)<= $unsigned(ID_EX_B))
       		  begin
 
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
 			BRANCH_STATUS<=1'b1;
-			
+		//	$display("BLTU a %d b %d %d",id_ex_a,id_ex_b,$time);
 
 		  end
 			else
@@ -966,7 +1042,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
                 begin
 
 
-                  if(id_ex_a >= id_ex_b)
+                  if($unsigned(ID_EX_A) >= $unsigned(ID_EX_B))
       		  begin
                 	tPC<= PC_IN_EXECUTE+ID_EX_Imm ;
 			VALID<=1'b1;
@@ -980,7 +1056,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
 				BRANCH_STATUS<=1'b0;
 		end
 
-		 	
+		 //	$display("BGEU a %d b %d %d",id_ex_a,id_ex_b,$time);
                 end
 	  default:
 		  begin
@@ -1000,7 +1076,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
             tPC<=PC_IN_EXECUTE+ID_EX_Imm ;
 	    VALID<=1'b1;
 	    BRANCH_STATUS<=1'b1;
-        	
+        	$display("JAL %d",$time);
 
           end
 
@@ -1013,7 +1089,7 @@ module rv32ex(clk,ID_EX_type,ID_EX_IR,rs1,rs2,PC_IN_EXECUTE,PC_OUT_EXECUTE,VALID
             tPC<=ID_EX_A+ID_EX_Imm ;
 	    VALID<=1'b1;
 	    BRANCH_STATUS<=1'b1;
-		
+			$display("JALR %d",$time);
           end
 	default:
 	begin
@@ -1043,8 +1119,10 @@ module rv32_mem(EX_MEM_type,EX_MEM_B,clk,MEM_WB_ALUOut,EX_MEM_ALUOut,MEM_WB_IR,E
   reg [31:0] Data_Memory [0:1023]; // Data memory
   always @(posedge clk)
     begin
+	    if(STALL)
+		    MEM_WB_IR<=32'd0;
 
-	   if((!STALL)&&(!HALT))
+	   else if((!STALL)&&(!HALT))
 	    begin
 		    MEM_WB_RD<=EX_MEM_RD;
       case(EX_MEM_type)
@@ -1082,9 +1160,9 @@ module rv32_wb(MEM_WB_ALUOut,clk,MEM_WB_IR,write_sig,address,data,HALT);
   end
  
 endmodule
-module rv32im_top (RESET,clk,wclk,winc,PROG_INST,MEM_WB_IR);
+module rv32im_top (RESET,clk,wclk,winc,instruction,MEM_WB_IR);
   input RESET,clk,wclk,winc;
-  input [31:0]PROG_INST;
+  input [31:0]instruction;
   wire [31:0]IF_ID_IR,ID_EX_IR,PC,rs1,rs2,PC_OUT_DECODE,PC_OUT_EXECUTE,EX_MEM_B,MEM_WB_ALUOut,EX_MEM_ALUOut,EX_MEM_IR,data,rd_data1,rd_data2,ID_EX_Imm;
 
   wire [6:0]ID_EX_type,EX_MEM_type;
@@ -1095,22 +1173,29 @@ module rv32im_top (RESET,clk,wclk,winc,PROG_INST,MEM_WB_IR);
  // assign test=1'b1;
  output [31:0]MEM_WB_IR;
   reg [31:0]PC_reg;
-
-
+  reg [6:0]ID_EX_type_reg;
+  reg [31:0]PC_OUT_DECODE_reg,ID_EX_IR_reg,ID_EX_Imm_reg;
+  reg [4:0]ID_EX_RD_reg;
+  
   always@(posedge clk)
   begin
 	if(!RESET)
 	begin
 	        PC_reg<=PC;
+		PC_OUT_DECODE_reg<=PC_OUT_DECODE;
+		ID_EX_IR_reg<=ID_EX_IR;
+		ID_EX_type_reg<=ID_EX_type;
+		ID_EX_RD_reg<=ID_EX_RD;
+		ID_EX_Imm_reg<=ID_EX_Imm;
   	end
   end
-  Fetch_top fetch(.RESET(RESET),.clk(clk),.branch_status_exe(BRANCH_STATUS),.valid_exe(VALID),.jump_addr_exe(PC_OUT_EXECUTE),.IF_ID_IR(IF_ID_IR),.PC(PC),.TAKEN_BRANCH(TAKEN_BRANCH),.STALL(STALL),.HALT(HALT),.winc(winc),.wclk(wclk),.PROG_INST(PROG_INST));
+  Fetch_top fetch(.RESET(RESET),.clk(clk),.branch_status_exe(BRANCH_STATUS),.valid_exe(VALID),.jump_addr_exe(PC_OUT_EXECUTE),.IF_ID_IR(IF_ID_IR),.PC(PC),.TAKEN_BRANCH(TAKEN_BRANCH),.STALL(STALL),.HALT(HALT),.winc(winc),.wclk(wclk),.instruction(instruction));
 
-  rv32de decode(.IF_ID_IR(IF_ID_IR),.clk(clk),.PC_IN_DECODE(PC_reg),.PC_OUT_DECODE(PC_OUT_DECODE),.ID_EX_A(ID_EX_A),.ID_EX_B(ID_EX_B),.ID_EX_IR(ID_EX_IR),.ID_EX_type(ID_EX_type),.read_sig(read_sig),.ID_EX_RD(ID_EX_RD),.STALL(STALL),.HALT(HALT),.ID_EX_Imm(ID_EX_Imm ));
+  rv32de decode(.IF_ID_IR(IF_ID_IR),.PC_IN_DECODE(PC_reg),.PC_OUT_DECODE(PC_OUT_DECODE),.ID_EX_A(ID_EX_A),.ID_EX_B(ID_EX_B),.ID_EX_IR(ID_EX_IR),.ID_EX_type(ID_EX_type),.read_sig(read_sig),.ID_EX_RD(ID_EX_RD),.STALL(STALL),.HALT(HALT),.ID_EX_Imm(ID_EX_Imm ));
 
-  regbank register_bank(.rd_data1(rd_data1),.rd_data2(rd_data2),.wr_data(data),.rs1(ID_EX_A),.rs2(ID_EX_B),.rd_wb(address),.write_sig(write_sig),.read_sig(read_sig),.EX_MEM_ALUOut(EX_MEM_ALUOut),.EX_MEM_rd(EX_MEM_RD),.MEM_WB_ALUOut(MEM_WB_ALUOut),.MEM_WB_rd(MEM_WB_RD));
+  regbank register_bank(.clk(clk),.rd_data1(rd_data1),.rd_data2(rd_data2),.wr_data(data),.rs1(ID_EX_A),.rs2(ID_EX_B),.rd_wb(address),.write_sig(write_sig),.read_sig(read_sig),.EX_MEM_ALUOut(EX_MEM_ALUOut),.EX_MEM_rd(EX_MEM_RD),.MEM_WB_ALUOut(MEM_WB_ALUOut),.MEM_WB_rd(MEM_WB_RD));
  
-  rv32ex execute_stage(.clk(clk),.ID_EX_type(ID_EX_type),.ID_EX_IR(ID_EX_IR),.rs1(rd_data1),.rs2(rd_data2),.PC_IN_EXECUTE(PC_OUT_DECODE),.PC_OUT_EXECUTE(PC_OUT_EXECUTE),.VALID(VALID),.BRANCH_STATUS(BRANCH_STATUS),.EX_MEM_ALUOut(EX_MEM_ALUOut),.EX_MEM_B(EX_MEM_B),.EX_MEM_IR(EX_MEM_IR),.STALL(STALL),.EX_MEM_type(EX_MEM_type),.HALT(HALT),.ID_EX_RD(ID_EX_RD),.EX_MEM_RD(EX_MEM_RD),.ID_EX_Imm(ID_EX_Imm ));
+  rv32ex execute_stage(.clk(clk),.ID_EX_type(ID_EX_type_reg),.ID_EX_IR(ID_EX_IR_reg),.rs1(rd_data1),.rs2(rd_data2),.PC_IN_EXECUTE(PC_OUT_DECODE_reg),.PC_OUT_EXECUTE(PC_OUT_EXECUTE),.VALID(VALID),.BRANCH_STATUS(BRANCH_STATUS),.EX_MEM_ALUOut(EX_MEM_ALUOut),.EX_MEM_B(EX_MEM_B),.EX_MEM_IR(EX_MEM_IR),.STALL(STALL),.EX_MEM_type(EX_MEM_type),.HALT(HALT),.ID_EX_RD(ID_EX_RD_reg),.EX_MEM_RD(EX_MEM_RD),.ID_EX_Imm(ID_EX_Imm_reg));
 
   rv32_mem memory_stage(.EX_MEM_type(EX_MEM_type),.EX_MEM_B(EX_MEM_B),.clk(clk),.MEM_WB_ALUOut(MEM_WB_ALUOut),.EX_MEM_ALUOut(EX_MEM_ALUOut),.MEM_WB_IR(MEM_WB_IR),.EX_MEM_IR(EX_MEM_IR),.STALL(STALL),.HALT(HALT),.EX_MEM_RD(EX_MEM_RD),.MEM_WB_RD(MEM_WB_RD));
 
