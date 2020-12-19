@@ -409,13 +409,13 @@ module Branch_predictor(clk,rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,
 	begin
       	if(rst)
         begin
-          for(i=0;i<16;i=i+1)
+       /*   for(i=0;i<16;i=i+1)
             begin
 		    //$display("%d",i);
-        	    LHT[i[3:0]]<=4'd0;
-              	    LPT[i[3:0]]<=2'd0;
-            end
-          
+        	    LHT[i[3:0]]=4'd0;
+              	    LPT[i[3:0]]=2'd0;
+            end*/
+          TAKEN_BRANCH<=1'b0;
         end
       	else if(BP_select)
         begin
@@ -431,7 +431,12 @@ module Branch_predictor(clk,rst,LHT_index_read,LHT_index_write,rd_sig,write_sig,
 				2'b01:TAKEN_BRANCH<=1'b0;
 				2'b10:TAKEN_BRANCH<=1'b1;
 				2'b11:TAKEN_BRANCH<=1'b1;
-//				default:TAKEN_BRANCH=1'b0;
+				default:
+					begin
+						TAKEN_BRANCH<=1'b0;
+						LHT[LHT_index_read]<=4'd0;
+						LPT[LHT[LHT_index_read]]<=4'd0;
+					end
 			endcase
 		
 		end
