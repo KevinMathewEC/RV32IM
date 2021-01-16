@@ -1,4 +1,4 @@
-/*module Mem_read(
+module Mem_read(
 	input rclk,
 	input [31:0]rd_addr,
 	output reg[31:0]r_addr
